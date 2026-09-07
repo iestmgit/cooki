@@ -4,7 +4,9 @@
   "version": "1.0",
   "description": "بازی اکشن دو نفره با گرافیک نئونی",
   "action": {
-    "default_popup": "game.html"
+    "default_title": "بازی نبرد فضایی"
   },
-  "permissions": ["storage"]
+  "background": {
+    "service_worker": "background.js"
+  }
 }
