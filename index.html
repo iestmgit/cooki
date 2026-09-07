@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>مسابقه ماشین ۳D - دو نفره</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: #000;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        #game-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #split-line {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.7);
+            z-index: 10;
+            box-shadow: 0 0 10px #fff;
+        }
+
+        #ui {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 30px;
+            border-radius: 20px;
+            z-index: 100;
+            text-align: center;
+            border: 2px solid #00ff88;
+            font-weight: bold;
+        }
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 200;
+            color: white;
+        }
+
+        #startScreen h1 {
+            font-size: 50px;
+            color: #ff4444;
+            text-shadow: 0 0 20px #ff4444;
+            margin-bottom: 20px;
+        }
+
+        #startScreen h2 {
+            font-size: 24px;
+            color: #00aaff;
+            text-shadow: 0 0 20px #00aaff;
+            margin-bottom: 40px;
+        }
+
+        #startScreen button {
+            background: linear-gradient(45deg, #ff4444, #ffaa00);
+            border: none;
+            padding: 15px 50px;
+            font-size: 24px;
+            border-radius: 30px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.3s, box-shadow 0.3s;
+        }
+
+        #startScreen button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(255, 68, 68, 0.8);
+        }
+
+        .controls-info {
+            margin-top: 30px;
+            font-size: 16px;
+            line-height: 2;
+            background: rgba(255,255,255,0.1);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .red-text { color: #ff4444; font-weight: bold; }
+        .blue-text { color: #00aaff; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div id="split-line"></div>
+        <div id="ui">🏁 مسابقه ۳D 🏁</div>
+        
+        <div id="startScreen">
+            <h1>🏎️ مسابقه ماشین ۳D 🏎️</h1>
+            <h2>دو نفره | صفحه تقسیم شده</h2>
+            
+            <div class="controls-info">
+                <div class="red-text">🔴 بازیکن ۱ (پایین صفحه):</div>
+                <div>W = گاز | S = ترمز | A = چپ | D = راست</div>
+                <br>
+                <div class="blue-text">🔵 بازیکن ۲ (بالای صفحه):</div>
+                <div>↑ = گاز | ↓ = ترمز | ← = چپ | → = راست</div>
+            </div>
+            
+            <br>
+            <button id="startBtn">🏁 شروع مسابقه 🏁</button>
+        </div>
+    </div>
+
+    <!-- بارگذاری کتابخانه Three.js از CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        // تنظیمات اولیه و صحنه
+        const container = document.getElementById('game-container');
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+        // نورپردازی
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+        
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(50, 100, 50);
+        scene.add(dirLight);
+
+        // دوربین‌ها (برای هر بازیکن یک دوربین)
+        const camera1 = new THREE.PerspectiveCamera(75, window.innerWidth / (window.innerHeight / 2), 0.1, 1000);
+        const camera2 = new THREE.PerspectiveCamera(75, window.innerWidth / (window.innerHeight / 2), 0.1, 1000);
+        
+        // تنظیم نیمه بالا و پایین صفحه
+        camera1.setViewOffset(window.innerWidth, window.innerHeight, 0, window.innerHeight / 2, window.innerWidth, window.innerHeight / 2);
+        camera2.setViewOffset(window.innerWidth, window.innerHeight, 0, 0, window.innerWidth, window.innerHeight / 2);
+
+        // رندرر
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        container.appendChild(renderer.domElement);
+
+        // ساخت مسیر (جاده)
+        function createTrack() {
+            const trackGroup = new THREE.Group();
+            
+            // ساخت جاده به صورت زیگزاگ و پیچ در پیچ
+            const points = [];
+            for (let i = 0; i < 100; i++) {
+                points.push(new THREE.Vector3(
+                    Math.sin(i * 0.3) * 20, 
+                    0, 
+                    i * 5
+                ));
+            }
+
+            const curve = new THREE.CatmullRomCurve3(points);
+            const tubeGeometry = new THREE.TubeGeometry(curve, 200, 8, 8, false);
+            const trackMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x222222, 
+                roughness: 0.9 
+            });
+            const track = new THREE.Mesh(tubeGeometry, trackMaterial);
+            trackGroup.add(track);
+
+            // اضافه کردن خطوط وسط جاده
+            const linePoints = curve.getPoints(200);
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints(linePoints);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            const centerLine = new THREE.Line(lineGeometry, lineMaterial);
+            centerLine.position.y = 1; // کمی بالاتر از جاده
+            trackGroup.add(centerLine);
+
+            // اضافه کردن درخت‌ها در اطراف جاده
+            const treeGeometry = new THREE.ConeGeometry(2, 5, 8);
+            const treeMaterial = new THREE.MeshStandardMaterial({ color: 0x00aa00 });
+            
+            for (let i = 0; i < curve.getPoints(50).length; i++) {
+                const pos = curve.getPointAt(i / 50);
+                const tree1 = new THREE.Mesh(treeGeometry, treeMaterial);
+                tree1.position.set(pos.x + 15, 2.5, pos.z);
+                tree1.scale.setScalar(Math.random() * 2 + 1);
+                trackGroup.add(tree1);
+
+                const tree2 = new THREE.Mesh(treeGeometry, treeMaterial);
+                tree2.position.set(pos.x - 15, 2.5, pos.z);
+                tree2.scale.setScalar(Math.random() * 2 + 1);
+                trackGroup.add(tree2);
+            }
+
+            // خط پایان
+            const finishPlane = new THREE.Mesh(
+                new THREE.BoxGeometry(30, 2, 5),
+                new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffff00 })
+            );
+            finishPlane.position.set(0, 1, 500);
+            trackGroup.add(finishPlane);
+
+            return { group: trackGroup, curve: curve };
+        }
+
+        const trackData = createTrack();
+        scene.add(trackData.group);
+
+        // تابع ساخت ماشین
+        function createCar(color) {
+            const carGroup = new THREE.Group();
+            
+            // بدنه ماشین
+            const bodyGeometry = new THREE.BoxGeometry(4, 1, 8);
+            const bodyMaterial = new THREE.MeshStandardMaterial({ 
+                color: color, 
+                metalness: 0.5, 
+                roughness: 0.4 
+            });
+            const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+            body.position.y = 1;
+            body.castShadow = true;
+            carGroup.add(body);
+
+            // سقف (کابین)
+            const roofGeometry = new THREE.BoxGeometry(2, 1, 3);
+            const roof = new THREE.Mesh(roofGeometry, bodyMaterial);
+            roof.position.set(0, 1.5, -1);
+            carGroup.add(roof);
+
+            // چرخ‌ها
+            const wheelGeometry = new THREE.CylinderGeometry(0.5, 0.5, 0.5, 16);
+            const wheelMaterial = new THREE.MeshStandardMaterial({ color: 0x111111 });
+            
+            const wheelPositions = [
+                [-2, 0.5, 2.5], [2, 0.5, 2.5],
+                [-2, 0.5, -2.5], [2, 0.5, -2.5]
+            ];
+
+            wheelPositions.forEach(pos => {
+                const wheel = new THREE.Mesh(wheelGeometry, wheelMaterial);
+                wheel.rotation.z = Math.PI / 2;
+                wheel.position.set(...pos);
+                carGroup.add(wheel);
+            });
+
+            // چراغ‌های جلو
+            const headlightMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0xffffff, emissive: 0xffff00 
+            });
+            const headlight1 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.5, 0.5), 
+                headlightMaterial
+            );
+            headlight1.position.set(-1.5, 1, 4);
+            carGroup.add(headlight1);
+
+            const headlight2 = headlight1.clone();
+            headlight2.position.x = 1.5;
+            carGroup.add(headlight2);
+
+            return carGroup;
+        }
+
+        // ایجاد ماشین‌ها
+        const car1 = createCar(0xff0000); // قرمز - بازیکن 1
+        const car2 = createCar(0x0000ff); // آبی - بازیکن 2
+        car1.position.set(0, 0, 10);
+        car2.position.set(0, 0, 10);
+        
+        scene.add(car1);
+        scene.add(car2);
+
+        // وضعیت بازی
+        let gameRunning = false;
+        let player1Finished = false;
+        let player2Finished = false;
+        let winner = null;
+
+        // وضعیت ماشین‌ها
+        const carState1 = {
+            speed: 0,
+            maxSpeed: 40,
+            acceleration: 15,
+            braking: 20,
+            steering: 1.5
+        };
+
+        const carState2 = {
+            speed: 0,
+            maxSpeed: 40,
+            acceleration: 15,
+            braking: 20,
+            steering: 1.5
+        };
+
+        // مدیریت کلیدها
+        const keys = {};
+        document.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+        });
+        document.addEventListener('keyup', (e) => {
+            keys[e.code] = false;
+        });
+
+        // شروع بازی
+        document.getElementById('startBtn').addEventListener('click', () => {
+            document.getElementById('startScreen').style.display = 'none';
+            gameRunning = true;
+            document.getElementById('ui').textContent = "🏁 مسابقه شروع شد! 🏁";
+            animate();
+        });
+
+        // حلقه بازی
+        function animate() {
+            if (!gameRunning) return;
+            
+            requestAnimationFrame(animate);
+
+            const dt = 0.016; // حدود 60 فریم بر ثانیه
+
+            // --- کنترل بازیکن 1 (قرمز) ---
+            if (keys['KeyW']) carState1.speed += carState1.acceleration * dt;
+            else if (keys['KeyS']) carState1.speed -= carState1.braking * dt;
+            else carState1.speed *= 0.99; // اصطکاک
+
+            carState1.speed = Math.max(-10, Math.min(carState1.maxSpeed, carState1.speed));
+
+            if (keys['KeyA']) car1.rotation.y += carState1.steering * dt;
+            if (keys['KeyD']) car1.rotation.y -= carState1.steering * dt;
+
+            // حرکت رو به جلو
+            car1.position.x += Math.sin(car1.rotation.y) * carState1.speed * dt;
+            car1.position.z += Math.cos(car1.rotation.y) * carState1.speed * dt;
+
+            // --- کنترل بازیکن 2 (آبی) ---
+            if (keys['ArrowUp']) carState2.speed += carState2.acceleration * dt;
+            else if (keys['ArrowDown']) carState2.speed -= carState2.braking * dt;
+            else carState2.speed *= 0.99;
+
+            carState2.speed = Math.max(-10, Math.min(carState2.maxSpeed, carState2.speed));
+
+            if (keys['ArrowLeft']) car2.rotation.y += carState2.steering * dt;
+            if (keys['ArrowRight']) car2.rotation.y -= carState2.steering * dt;
+
+            car2.position.x += Math.sin(car2.rotation.y) * carState2.speed * dt;
+            car2.position.z += Math.cos(car2.rotation.y) * carState2.speed * dt;
+
+            // --- محدود کردن ماشین‌ها به مسیر ---
+            // (ساده شده: اگر از مسیر خارج شدند، به عقب برمی‌گردند)
+            if (Math.abs(car1.position.x) > 25) {
+                carState1.speed *= 0.5;
+                car1.position.x = Math.sign(car1.position.x) * 25;
+            }
+            if (Math.abs(car2.position.x) > 25) {
+                carState2.speed *= 0.5;
+                car2.position.x = Math.sign(car2.position.x) * 25;
+            }
+
+            // --- بررسی خط پایان ---
+            if (car1.position.z > 500 && !player1Finished) {
+                player1Finished = true;
+                if (!winner) winner = "بازیکن ۱ (قرمز)";
+            }
+            if (car2.position.z > 500 && !player2Finished) {
+                player2Finished = true;
+                if (!winner) winner = "بازیکن ۲ (آبی)";
+            }
+
+            if (player1Finished && player2Finished) {
+                gameRunning = false;
+                document.getElementById('ui').textContent = `🏆 برنده: ${winner}! 🏆`;
+            }
+
+            // --- به‌روزرسانی دوربین‌ها ---
+            camera1.position.set(car1.position.x, car1.position.y + 8, car1.position.z - 20);
+            camera1.lookAt(car1.position.x, car1.position.y + 2, car1.position.z);
+
+            camera2.position.set(car2.position.x, car2.position.y + 8, car2.position.z - 20);
+            camera2.lookAt(car2.position.x, car2.position.y + 2, car2.position.z);
+
+            // رندر
+            renderer.render(scene, camera1);
+            renderer.render(scene, camera2); // رندر دوم برای نمای بالا
+        }
+
+        // تغییر سایز صفحه
+        window.addEventListener('resize', () => {
+            camera1.aspect = window.innerWidth / (window.innerHeight / 2);
+            camera1.updateProjectionMatrix();
+            
+            camera2.aspect = window.innerWidth / (window.innerHeight / 2);
+            camera2.updateProjectionMatrix();
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            
+            camera1.setViewOffset(window.innerWidth, window.innerHeight, 0, window.innerHeight / 2, window.innerWidth, window.innerHeight / 2);
+            camera2.setViewOffset(window.innerWidth, window.innerHeight, 0, 0, window.innerWidth, window.innerHeight / 2);
+        });
+    </script>
+</body>
+</html>
