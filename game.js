@@ -6,7 +6,7 @@ canvas.height = 600;
 
 // متغیرهای بازی
 let gameRunning = false;
-let lastTime = 0;
+let lastTime = performance.now();
 let score1 = 0;
 let score2 = 0;
 let particles = [];
@@ -179,7 +179,7 @@ document.addEventListener('keyup', (e) => {
     keys[e.code] = false;
 });
 
-// شروع بازی
+// شروع بازی (با Event Listener درست شد)
 function startGame() {
     document.getElementById('startScreen').style.display = 'none';
     gameRunning = true;
@@ -189,8 +189,13 @@ function startGame() {
     player2.lives = 3;
     enemies = [];
     particles = [];
+    
+    lastTime = performance.now(); // تنظیم مجدد زمان برای جلوگیری از پرش
     requestAnimationFrame(gameLoop);
 }
+
+// اضافه کردن شنونده رویداد به دکمه
+document.getElementById('startBtn').addEventListener('click', startGame);
 
 // حلقه بازی
 function gameLoop(currentTime) {
@@ -322,5 +327,3 @@ function draw() {
     ctx.fillStyle = '#00aaff';
     ctx.fillText(`♥ ${player2.lives}`, canvas.width - 80, 30);
 }
-
-lastTime = performance.now();
