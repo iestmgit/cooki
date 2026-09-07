@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "نبرد فضایی - بازی دو نفره",
+  "version": "1.0",
+  "description": "بازی اکشن دو نفره با گرافیک نئونی",
+  "action": {
+    "default_popup": "game.html"
+  },
+  "permissions": ["storage"]
+}
